@@ -115,7 +115,7 @@ def search_for_jars(ij_dir, subfolder):
                     'ij1-patcher' not in f and \
                     'ij-1' not in f and \
                     'legacy-imglib1' not in f:
-                path = root + '/' + f
+                path = root + os.sep + f
                 jars.append(path)
                 _debug('Added ' + path)
     return jars
@@ -131,9 +131,9 @@ def set_ij_env(ij_dir, imglyb_path):
     """
     jars = []
     # search jars directory
-    jars.extend(search_for_jars(ij_dir, '/jars'))
+    jars.extend(search_for_jars(ij_dir, os.sep + 'jars'))
     # search plugins directory
-    jars.extend(search_for_jars(ij_dir, '/plugins'))
+    jars.extend(search_for_jars(ij_dir, os.sep + 'plugins'))
     # add to classpath
     num_jars = len(jars)
     classpath = ":".join(jars) + ":" + imglyb_path
@@ -154,7 +154,7 @@ def verify_java_env():
         return
     else:
         java_home = os.getenv('JAVA_HOME')
-        if os.path.isfile(java_home + '/bin/java'):
+        if os.path.isfile(java_home + os.sep + 'bin' + os.sep + 'java'):
             print('Java environment: ' + os.getenv('JAVA_HOME'))
             return
         else:
@@ -176,7 +176,7 @@ def verify_conda_env():
                 please manually set the conda enviroment')
     else:
         try:
-            subprocess.check_output([conda_env + '/bin/conda', '--version'])
+            subprocess.check_output([conda_env + os.sep + 'bin' + os.sep + 'conda', '--version'])
         except OSError:
             print('Conda Environment is not set correctly,\
                     please manually set the conda enviroment')
@@ -269,7 +269,7 @@ def conda_path_check(p, checked, imglyb_path, pyjnius_path, java_path):
     :return: pyjnius_path: path to pyjnius if found, otherwise None
     :return: java_path: path to java if found, otherwise None
     """
-    split_list = p.split("/")
+    split_list = p.split(os.sep)
     index_conda = 0
     index_env = 0
 
@@ -285,13 +285,13 @@ def conda_path_check(p, checked, imglyb_path, pyjnius_path, java_path):
     else:
         index = index_env
 
-    basedir = "/".join(split_list[0:index+1])
+    basedir = os.sep.join(split_list[0:index+1])
     if basedir in checked:
         return imglyb_path, pyjnius_path, java_path
 
-    test_path_imglyb = basedir + "/share/imglyb/"
-    test_path_pyjnius = basedir + "/share/pyjnius/"
-    test_path_java = basedir + "/bin"
+    test_path_imglyb = basedir + os.sep + "share" + os.sep + "imglyb" + os.sep
+    test_path_pyjnius = basedir + os.sep + "share" + os.sep + "pyjnius" + os.sep
+    test_path_java = basedir + os.sep + "bin"
 
     imglyb_path = jar_present(imglyb_path, basedir, test_path_imglyb, 'imglyb')
     pyjnius_path = jar_present(pyjnius_path, basedir, test_path_pyjnius, 'pyjnius')
@@ -311,19 +311,19 @@ def pypi_path_check(p, checked, imglyb_path, pyjnius_path):
     :return:
     """
 
-    split_list = p.split("/")
+    split_list = p.split(os.sep)
     index = 0
     for level in split_list:
         index += 1
         if level == "site_packages" or level == "dist-packages":
             break
 
-    basedir = "/".join(split_list[0:index + 1])
+    basedir = os.sep.join(split_list[0:index + 1])
     if basedir in checked:
         return None, None
 
-    test_path_imglyb = basedir + "/imglyb/"
-    test_path_pyjnius = basedir + "/pyjnius/"
+    test_path_imglyb = basedir + os.sep + "imglyb" + os.sep
+    test_path_pyjnius = basedir + os.sep + "pyjnius" + os.sep
 
     if imglyb_path is None and os.path.isdir(test_path_imglyb):
         for f in os.listdir(test_path_imglyb):
