@@ -57,3 +57,4 @@ python setup.py install
 # -- run test with debug flag --
 cd test
 python -O test_imagej.py --ij "$ij_dir"
+python -O test_imagej_headless_false.py --ij "$ij_dir"
