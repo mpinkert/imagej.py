@@ -13,6 +13,7 @@ import scyjava_config
 import jnius_config
 from pathlib import Path
 import numpy
+import xarray as xr
 
 _logger = logging.getLogger(__name__)
 
@@ -124,6 +125,7 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
     # Must import imglyb (not scyjava) to spin up the JVM now.
     import imglyb
     from jnius import autoclass
+    import scyjava
 
     # Initialize ImageJ.
     ImageJ = autoclass('net.imagej.ImageJ')
@@ -134,6 +136,8 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
     from scyjava import jclass, isjava, to_java, to_python
 
     Dataset                  = autoclass('net.imagej.Dataset')
+    ImgPlus                  = autoclass('net.imagej.ImgPlus')
+    Img                      = autoclass('net.imglib2.img.Img')
     RandomAccessibleInterval = autoclass('net.imglib2.RandomAccessibleInterval')
 
     class ImageJPython:
@@ -286,19 +290,99 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
 
         def to_java(self, data):
             """
-            Converts the data into a java equivalent.  For numpy arrays, the java image points to the python array
+            Converts the axis into a java equivalent.  For numpy arrays, the java image points to the python array.
+
+            In addition to the scyjava types, we allow ndarray-like and xarray-like variables
             """
             if self._is_memoryarraylike(data):
                 return imglyb.to_imglib(data)
+            if self._is_xarraylike(data):
+                return self.to_dataset(data)
             return to_java(data)
 
         def to_dataset(self, data):
+            """Converts the axis into an ImageJ dataset"""
+            if self._is_xarraylike(data):
+                return self._xarray_to_dataset(data)
+            if self._is_arraylike(data):
+                return self._numpy_to_dataset(data)
+            if scyjava.isjava(data):
+                return self._java_to_dataset(data)
+
+            raise TypeError(f'Type not supported: {type(data)}')
+
+        def _numpy_to_dataset(self, data):
+            rai = imglyb.to_imglib(data)
+            return self._java_to_dataset(rai)
+
+        def _xarray_to_dataset(self, data):
             """
-            Converts the data into a ImageJ Dataset
+            Converts a numpy array with default dimension order or xarray dataarray with specified dim order to an image
+            :param dataarray: Pass an xarray dataarray and turn into a dataset.
+            :return:
+            """
+            if len(data.dims == 0):
+                dataset = self._numpy_to_dataset(data.values)
+            elif 'X' in data.dims and 'Y' in data.dims:
+
+
+            dataset.getProperties().putAll(self.to_java(data.attrs))
+            return dataset
+            # Problems: Assuming we need to flip or not?
+            # Assuming XYCZT?  Or comes in as TZCYX?
+            #
+
+            # Convert the values into a dataset, bubbling X and Y to the top, while converting axes properly
+            # Set the origin and scale
+            # Warn if the scale is not linear, that it has been assumed to be linear
+
+        def _is_linear(self, coords):
+            """
+
+            :param coords:
+            :return:
+            """
+            for coord, values in coords.items():
+                try:
+                    diff = numpy.diff(coords)
+                    if len(numpy.unique(diff)) > 1:
+                        return False
+
+
+            return True
+
+        def _get_origin(self, axis):
+            """
+            Get the coordinate origin of an axis, assuming it is the first entry.
+            :param axis: A 1D list like entry accessible with indexing, which contains the axis coordinates
+            :return: The origin for this axis.
+            """
+            return axis[0]
+
+        def _get_scale(self, axis):
+            """
+            Get the scale of an axis, assuming it is linear and so the scale is simply second - first coordinate.
+            :param axis: A 1D list like entry accessible with indexing, which contains the axis coordinates
+            :return: The scale for this axis.
+            """
+            return axis[1] - axis[0]
+
+        def _java_to_dataset(self, data):
+            """
+            Converts the axis into a ImageJ Dataset
             """
             try:
                 if self._ij.convert().supports(data, Dataset):
                     return self._ij.convert().convert(data, Dataset)
+                if self._ij.convert().supports(data, ImgPlus):
+                    imgPlus = self._ij.convert().convert(data, ImgPlus)
+                    return self._ij.dataset().create(imgPlus)
+                if self._ij.convert().supports(data, ImgPlus):
+                    img = self._ij.convert().convert(data, Img)
+                    return self._ij.dataset().create(ImgPlus(img))
+                if self._ij.convert().supports(data, RandomAccessibleInterval):
+                    rai = self._ij.convert().convert(data, RandomAccessibleInterval)
+                    return self._ij.dataset().create(rai)
             except Exception as exc:
                 _dump_exception(exc)
                 raise exc
@@ -306,8 +390,10 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
 
         def from_java(self, data):
             """
-            Converts the data into a python equivalent
+            Converts the axis into a python equivalent
             """
+            # todo: convert a datset to xarray
+
             if not isjava(data): return data
             try:
                 if self._ij.convert().supports(data, Dataset):
@@ -347,8 +433,14 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
 
         def _is_memoryarraylike(self, arr):
             return self._is_arraylike(arr) and \
-                hasattr(arr, 'data') and \
+                hasattr(arr, 'axis') and \
                 type(arr.data).__name__ == 'memoryview'
+
+        def _is_xarraylike(self, xarr):
+            return hasattr(xarr, 'values') and \
+                hasattr(xarr, 'dims') and \
+                hasattr(xarr, 'coords') and \
+                self._is_arraylike(xarr.values)
 
         def _assemble_plugin_macro(self, plugin: str, args=None, ij1_style=True):
             """
