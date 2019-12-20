@@ -456,6 +456,7 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
                 if self._ij.convert().supports(data, Dataset):
                     # HACK: Converter exists for ImagePlus -> Dataset, but not ImagePlus -> RAI.
                     data = self._ij.convert().convert(data, Dataset)
+                    return self._dataset_to_xarray(data)
                 if (self._ij.convert().supports(data, RandomAccessibleInterval)):
                     rai = self._ij.convert().convert(data, RandomAccessibleInterval)
                     return self.rai_to_numpy(rai)
@@ -463,6 +464,37 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
                 _dump_exception(exc)
                 raise exc
             return to_python(data)
+
+        def _dataset_to_xarray(self, dataset):
+            """
+            Converts an ImageJ dataset into an xarray
+            :param dataset: ImageJ dataset
+            :return: xarray with reversed dims and coords as labeled by the dataset
+            """
+            attrs = self._ij.py.from_java(dataset.getProperties())
+            axes = [(cast('net.imagej.axis.DefaultLinearAxis', dataset.axis(idx)))
+                    for idx in range(dataset.numDimensions())]
+
+            dims = [axes[idx].type().getLabel() for idx in range(len(axes))]
+            values = to_python(dataset)  # todo: Fix this to get a numpy array and not java iterable
+            coords = self._get_axes_coords(axes, dims, numpy.shape(numpy.transpose(values)))
+
+            xarr = xr.DataArray(values, dims=list(reversed(dims)), coords=coords, attrs=attrs)
+            return xarr
+
+        def _get_axes_coords(self, axes, dims, shape):
+            """
+            Get xarray style coordinate list dictionary from a dataset
+            :param axes: List of ImageJ axes
+            :param dims: List of axes labels for each dataset axis
+            :param shape: F-style, or reversed C-style, shape of axes numpy array.
+            :return: Dictionary of coordinates for each axis.
+            """
+            coords = {dims[idx]: numpy.arange(axes[idx].origin(), shape[idx]*axes[idx].scale() + axes[idx].origin(),
+                                              axes[idx].scale())
+                      for idx in range(len(dims))}
+            return coords
+
 
         def show(self, image, cmap=None):
             """

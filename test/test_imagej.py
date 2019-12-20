@@ -145,6 +145,23 @@ class TestXarrayConversion(unittest.TestCase):
         self.assertListEqual(list(xarr.dims), labels)
         self.assertEqual(xarr.attrs, ij.py.from_java(dataset.getProperties()))
 
+    def testDatasetConvertsToXarray(self):
+        xarr = xr.DataArray(np.random.rand(5, 4, 3, 6, 12), dims=['T', 'Z', 'C', 'Y', 'X'],
+                             coords={'X': range(0, 12), 'Y': np.arange(0, 12, 2), 'C': ['R', 'G', 'B'],
+                                     'Z': np.arange(10, 50, 10), 'T': np.arange(0, 0.05, 0.01)},
+                             attrs={'Hello': 'Wrld'})
+
+        dataset = ij.py.to_java(xarr)
+
+        invert_xarr = ij.py.from_java(dataset)
+        vals_equal = np.testing.assert_array_equal(xarr.values, invert_xarr.values)
+        self.assertTrue(vals_equal)
+
+        self.assertListEqual(xarr.dims, invert_xarr.dims)
+        self.assertDictEqual(xarr.coords, invert_xarr.coords)
+        self.assertDictEqual(xarr.attrs, invert_xarr.attrs)
+
+
 
 if __name__ == '__main__':
     unittest.main()
