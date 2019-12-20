@@ -126,6 +126,7 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
     # Must import imglyb (not scyjava) to spin up the JVM now.
     import imglyb
     from jnius import autoclass
+    from jnius import cast
     import scyjava
 
     # Initialize ImageJ.
@@ -140,6 +141,8 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
     ImgPlus                  = autoclass('net.imagej.ImgPlus')
     Img                      = autoclass('net.imglib2.img.Img')
     RandomAccessibleInterval = autoclass('net.imglib2.RandomAccessibleInterval')
+    Axes                     = autoclass('net.imagej.axis.Axes')
+    DefaultLinearAxis        = autoclass('net.imagej.axis.DefaultLinearAxis')
 
     class ImageJPython:
         def __init__(self, ij):
@@ -316,18 +319,22 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
             rai = imglyb.to_imglib(data)
             return self._java_to_dataset(rai)
 
-        def _xarray_to_dataset(self, data):
+        def _xarray_to_dataset(self, xarr):
             """
             Converts a numpy array with default dimension order or xarray dataarray with specified dim order to an image
-            :param dataarray: Pass an xarray dataarray and turn into a dataset.
+            :param xarr: Pass an xarray dataarray and turn into a dataset.
             :return:
             """
-            if len(data.dims == 0):
-                dataset = self._numpy_to_dataset(data.values)
-            elif 'X' in data.dims and 'Y' in data.dims:
+            dataset = self._numpy_to_dataset(xarr.values)
+            axes = self._assign_axes(xarr)
+            dataset.setAxes(axes)
 
+            # Currently, we have no handling for nonlinear axes, but I thought it should warn instead of fail.
+            if not self._linear_axes(xarr.coords):
+                warnings.warn("Not all axes are linear.  The nonlinear axes are not mapped correctly.")
+            
+            self._assign_dataset_metadata(dataset, xarr.attrs)
 
-            dataset.getProperties().putAll(self.to_java(data.attrs))
             return dataset
             # Problems: Assuming we need to flip or not?
             # Assuming XYCZT?  Or comes in as TZCYX?
@@ -336,21 +343,67 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
             # Convert the values into a dataset, bubbling X and Y to the top, while converting axes properly
             # Set the origin and scale
             # Warn if the scale is not linear, that it has been assumed to be linear
-
-        def _is_linear(self, coords):
+        
+        def _assign_axes(self, xarr):
             """
-
-            :param coords:
-            :return:
+            Assign xarray axes names and units to the Java dataset.
+            :param dataset: Java dataset
+            :param xarr: xarray
             """
+            axes = ['']*len(xarr.dims)
+
+            for axis in xarr.dims:
+                origin = self._get_origin(xarr.coords[axis])
+                scale = self._get_scale(xarr.coords[axis])
+
+                ax_type = Axes.get(str(axis))
+                ax_num = self._get_axis_num(xarr, axis) # todo: Check about java axis number...
+                if scale is None:
+                    java_axis = DefaultLinearAxis(ax_type)
+                else:
+                    java_axis = DefaultLinearAxis(ax_type, numpy.double(scale), numpy.double(origin))
+
+                axes[ax_num] = java_axis
+
+            return axes
+
+        def _get_axis_num(self, xarr, axis):
+            """
+            Get the xarray -> java axis number due to inverted axis order for C style numpy arrays (default)
+            :param xarr: Xarray to convert
+            :param axis: Axis number to convert
+            :return: Axis idx in java
+            """
+            py_axnum = xarr.get_axis_num(axis)
+            if numpy.isfortran(xarr.values):
+                return py_axnum
+
+            return len(xarr.dims) - py_axnum - 1
+
+
+        def _assign_dataset_metadata(self, dataset, attrs):
+            """
+            :param dataset: ImageJ Java dataset
+            :param attrs: Dictionary containing metadata
+            """
+            dataset.getProperties().putAll(self.to_java(attrs))
+
+        def _linear_axes(self, coords):
+            """
+            Check if each axis has linear steps between grid points.  Skip over axes with non-numeric entries
+            :param coords: Xarray coords variable, which is a dict with axis: [axis values]
+            :return: Whether all axes are linear, or not.
+            """
+            linear = True
             for coord, values in coords.items():
                 try:
                     diff = numpy.diff(coords)
                     if len(numpy.unique(diff)) > 1:
-                        return False
-
-
-            return True
+                        warnings.warn(f'Axis {coord} is not linear')
+                        linear = False
+                except TypeError:
+                    continue
+            return linear
 
         def _get_origin(self, axis):
             """
@@ -358,7 +411,7 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
             :param axis: A 1D list like entry accessible with indexing, which contains the axis coordinates
             :return: The origin for this axis.
             """
-            return axis[0]
+            return axis.values[0]
 
         def _get_scale(self, axis):
             """
@@ -366,7 +419,10 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
             :param axis: A 1D list like entry accessible with indexing, which contains the axis coordinates
             :return: The scale for this axis.
             """
-            return axis[1] - axis[0]
+            try:
+                return axis.values[1] - axis.values[0]
+            except TypeError:
+                return None
 
         def _java_to_dataset(self, data):
             """
