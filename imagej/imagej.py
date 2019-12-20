@@ -14,6 +14,7 @@ import jnius_config
 from pathlib import Path
 import numpy
 import xarray as xr
+import warnings
 
 _logger = logging.getLogger(__name__)
 
@@ -290,7 +291,7 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
 
         def to_java(self, data):
             """
-            Converts the axis into a java equivalent.  For numpy arrays, the java image points to the python array.
+            Converts the data into a java equivalent.  For numpy arrays, the java image points to the python array.
 
             In addition to the scyjava types, we allow ndarray-like and xarray-like variables
             """
@@ -301,7 +302,7 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
             return to_java(data)
 
         def to_dataset(self, data):
-            """Converts the axis into an ImageJ dataset"""
+            """Converts the data into an ImageJ dataset"""
             if self._is_xarraylike(data):
                 return self._xarray_to_dataset(data)
             if self._is_arraylike(data):
@@ -369,7 +370,7 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
 
         def _java_to_dataset(self, data):
             """
-            Converts the axis into a ImageJ Dataset
+            Converts the data into a ImageJ Dataset
             """
             try:
                 if self._ij.convert().supports(data, Dataset):
@@ -390,7 +391,7 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
 
         def from_java(self, data):
             """
-            Converts the axis into a python equivalent
+            Converts the data into a python equivalent
             """
             # todo: convert a datset to xarray
 
@@ -433,7 +434,7 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
 
         def _is_memoryarraylike(self, arr):
             return self._is_arraylike(arr) and \
-                hasattr(arr, 'axis') and \
+                hasattr(arr, 'data') and \
                 type(arr.data).__name__ == 'memoryview'
 
         def _is_xarraylike(self, xarr):
