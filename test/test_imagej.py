@@ -147,19 +147,19 @@ class TestXarrayConversion(unittest.TestCase):
 
     def testDatasetConvertsToXarray(self):
         xarr = xr.DataArray(np.random.rand(5, 4, 3, 6, 12), dims=['T', 'Z', 'C', 'Y', 'X'],
-                             coords={'X': range(0, 12), 'Y': np.arange(0, 12, 2), 'C': ['R', 'G', 'B'],
-                                     'Z': np.arange(10, 50, 10), 'T': np.arange(0, 0.05, 0.01)},
+                             coords={'X': list(range(0, 12)), 'Y': list(np.arange(0, 12, 2)), 'C': [0, 1, 2],
+                                     'Z': list(np.arange(10, 50, 10)), 'T': list(np.arange(0, 0.05, 0.01))},
                              attrs={'Hello': 'Wrld'})
 
         dataset = ij.py.to_java(xarr)
 
         invert_xarr = ij.py.from_java(dataset)
-        vals_equal = np.testing.assert_array_equal(xarr.values, invert_xarr.values)
-        self.assertTrue(vals_equal)
+        self.assertTrue((xarr.values == invert_xarr.values).all())
 
-        self.assertListEqual(xarr.dims, invert_xarr.dims)
-        self.assertDictEqual(xarr.coords, invert_xarr.coords)
-        self.assertDictEqual(xarr.attrs, invert_xarr.attrs)
+        self.assertEqual(list(xarr.dims), list(invert_xarr.dims))
+        for key in xarr.coords:
+            self.assertTrue((xarr.coords[key] == invert_xarr.coords[key]).all())
+        self.assertEqual(xarr.attrs, invert_xarr.attrs)
 
 
 

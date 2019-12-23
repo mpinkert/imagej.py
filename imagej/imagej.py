@@ -476,7 +476,7 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
                     for idx in range(dataset.numDimensions())]
 
             dims = [axes[idx].type().getLabel() for idx in range(len(axes))]
-            values = to_python(dataset)  # todo: Fix this to get a numpy array and not java iterable
+            values = self.rai_to_numpy(dataset)  # todo: Fix this to get a numpy array and not java iterable
             coords = self._get_axes_coords(axes, dims, numpy.shape(numpy.transpose(values)))
 
             xarr = xr.DataArray(values, dims=list(reversed(dims)), coords=coords, attrs=attrs)
