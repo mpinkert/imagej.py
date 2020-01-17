@@ -101,6 +101,10 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
             path = ij_dir_or_version_or_endpoint
             _logger.debug('Local path to ImageJ installation given: %s', path)
             num_jars = set_ij_env(path)
+            if num_jars == 0:
+                _logger.error(f'Found no jars in {path}.  Please specify the path to a proper ImageJ installation.')
+                return False
+
             _logger.info("Added " + str(num_jars + 1) + " JARs to the Java classpath.")
             plugins_dir = str(Path(path, 'plugins'))
             scyjava_config.add_options('-Dplugins.dir=' + plugins_dir)
@@ -121,10 +125,22 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
             # Assume version of net.imagej:imagej.
             version = ij_dir_or_version_or_endpoint
             _logger.debug('ImageJ version given: %s', version)
-            scyjava_config.add_endpoints('net.imagej:imagej:' + version)
+            endpoint = 'net.imagej:imagej:' + version
+            scyjava_config.add_endpoints(endpoint)
 
     # Must import imglyb (not scyjava) to spin up the JVM now.
-    import imglyb
+
+    from jgo.jgo import InvalidEndpoint
+
+    try:
+        import imglyb
+    except (SystemExit, InvalidEndpoint):
+        _logger.error(f'Failed to initialize JVM. {endpoint} is not a valid endpoint')
+        scyjava_config._endpoints.remove(endpoint)
+        return False
+    # todo: Guard against the edge case where there is an invalid endpoint in scyjava_config before calling init?
+
+
     from jnius import autoclass
     from jnius import cast
     import scyjava
