@@ -136,10 +136,9 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
         import imglyb
     except (SystemExit, InvalidEndpoint):
         _logger.error(f'Failed to initialize JVM. {endpoint} is not a valid endpoint')
-        scyjava_config._endpoints.remove(endpoint)
+        _logger.debug('Cleaning up endpoints in scyjava_config')
+        scyjava_config._endpoints.clear()
         return False
-    # todo: Guard against the edge case where there is an invalid endpoint in scyjava_config before calling init?
-
 
     from jnius import autoclass
     from jnius import cast
