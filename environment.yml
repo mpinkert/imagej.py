@@ -10,4 +10,3 @@ dependencies:
   - scyjava
   - pillow # for server
   - requests # for server
-  - xarray
