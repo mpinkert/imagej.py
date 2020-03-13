@@ -602,6 +602,11 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
 
     ij.py._outputMapper = JavaOutputListener()
     ij.console().addOutputListener(ij.py._outputMapper)
+    try:
+        WindowManager = autoclass('ij.WindowManager')
+        ij.legacy_enabled = True
+    except:
+        ij.legacy_enabled = False
 
     return ij
 
