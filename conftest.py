@@ -12,8 +12,8 @@ def pytest_addoption(parser):
 
 @pytest.fixture(scope='session')
 def ij_fixture(request):
-        ij_dir = request.config.getoption('--ij')
-        headless = bool(request.config.getoption('--headless'))
+        ij_dir = request.config.getoption('--ij', default=None)
+        headless = bool(request.config.getoption('--headless', default=True))
 
         ij_wrapper = imagej.init(ij_dir, headless=headless)
 

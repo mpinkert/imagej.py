@@ -62,7 +62,7 @@ python setup.py install
 unset JAVA_HOME
 
 # -- run tests with local Fiji.app --
-python -O test/test_imagej.py --ij "$ij_dir"
+python -m pytest --headless=False --ij="$ij_dir"
 
 # -- run tests with ImageJ from Maven repository --
-python -m unittest discover test -v
+python -m pytest

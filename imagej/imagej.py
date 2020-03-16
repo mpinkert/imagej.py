@@ -605,8 +605,62 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
     try:
         WindowManager = autoclass('ij.WindowManager')
         ij.legacy_enabled = True
+
+        def window_to_xarray():
+            """
+            Convert the active image window to a numpy array, synchronizing from IJ1 -> IJ2
+            :return: numpy array containing the image data
+            """
+            imp = get_image_plus()
+            return ij.py.from_java(imp)
+
+        def get_image_plus():
+            """
+            Get the currently active IJ1 image window, synchronizing from IJ1 -> IJ2
+            :return: The ImagePlus corresponding to the active image
+            """
+            imp = WindowManager.getCurrentImage()
+            synchronize_ij2_to_ij1(imp)
+            return imp
+
+        def synchronize_ij2_to_ij1(imp):
+            """
+            Synchronize between IJ2 and IJ1 by accepting the IJ1 data as true
+            :param imp: The IJ1 ImagePlus that needs to be synchronized
+            """
+            stack = imp.getStack()
+            stack.setPixels(imp.getProcessor().getPixels(), imp.getCurrentSlice())
+
     except:
         ij.legacy_enabled = False
+
+        def synchronize_ij2_to_ij1():
+            """
+            Synchronize between IJ2 and IJ1 by accepting the IJ1 data as true
+            :param imp: The IJ1 ImagePlus that needs to be synchronized
+            """
+            warnings.warn(UserWarning("IJ1 is not installed.  This function does nothing."))
+            return False
+
+        def get_image_plus():
+            """
+            Get the currently active IJ1 image window, synchronizing from IJ1 -> IJ2
+            :return: The ImagePlus corresponding to the active image
+            """
+            warnings.warn(UserWarning("IJ1 is not installed.  This function does nothing."))
+            return False
+
+        def window_to_xarray():
+            """
+            Convert the active image window to a numpy array, synchronizing from IJ1 -> IJ2
+            :return: numpy array containing the image data
+            """
+            warnings.warn(UserWarning("IJ1 is not installed.  This function does nothing."))
+            return False
+
+    setattr(ij.py, "synchronize_ij2_to_ij1", synchronize_ij2_to_ij1)
+    setattr(ij.py, "get_image_plus", get_image_plus)
+    setattr(ij.py, "window_to_xarray", window_to_xarray)
 
     return ij
 

@@ -1,6 +1,7 @@
 import numpy as np
 import xarray as xr
-import unittest
+import pytest
+
 
 class TestImageJ(object):
 
@@ -66,8 +67,7 @@ class TestImageJ(object):
 
     def testPluginsLoadUsingPairwiseStitching(self, ij_fixture):
         if not ij_fixture.legacy_enabled:
-            # HACK: Skip test if not testing with a local Fij_fixturei.app.
-            return
+            pytest.skip("No IJ1.  Skipping test.")
 
         macro = """
         newImage("Tile1", "8-bit random", 512, 512, 1);
@@ -100,7 +100,6 @@ class TestXarrayConversion(object):
         labels = [axis.type().getLabel() for axis in axes]
         origins = [axis.origin() for axis in axes]
         scales = [axis.scale() for axis in axes]
-
 
         assert origins==[0, 0, 0, 10, 0]
         assert scales==[1, 2, 1, 10, 0.01]
