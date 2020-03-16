@@ -76,13 +76,13 @@ class TestImageJ(object):
         plugin = 'Pairwise stitching'
         args = {'first_image': 'Tile1', 'second_image': 'Tile2'}
 
-        ij_fixture.script().run('macro.ij_fixturem', macro, True).get()
+        ij_fixture.script().run('macro.ijm', macro, True).get()
         ij_fixture.py.run_plugin(plugin, args)
         from jnius import autoclass
-        WindowManager = autoclass('ij_fixture.WindowManager')
+        WindowManager = autoclass('ij.WindowManager')
         result_name = WindowManager.getCurrentImage().getTitle()
 
-        ij_fixture.script().run('macro.ij_fixturem', 'run("Close All");', True).get()
+        ij_fixture.script().run('macro.ijm', 'run("Close All");', True).get()
 
         assert result_name=='Tile1<->Tile2'
 
