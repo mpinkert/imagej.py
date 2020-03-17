@@ -612,7 +612,7 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
 
         def synchronize_ij2_to_ij1(self, imp):
             """
-            Synchronize between IJ2 and IJ1 by accepting the IJ1 data as true
+            Synchronize between a Dataset or ImageDisplay linked to an ImagePlus by accepting the ImagePlus data as true
             :param imp: The IJ1 ImagePlus that needs to be synchronized
             """
             stack = imp.getStack()
