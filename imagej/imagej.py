@@ -134,7 +134,6 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
     ij = ImageJ()
 
     # Append some useful utility functions to the ImageJ gateway.
-
     from scyjava import jclass, isjava, to_java, to_python
 
     Dataset                  = autoclass('net.imagej.Dataset')
@@ -143,6 +142,20 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
     RandomAccessibleInterval = autoclass('net.imglib2.RandomAccessibleInterval')
     Axes                     = autoclass('net.imagej.axis.Axes')
     DefaultLinearAxis        = autoclass('net.imagej.axis.DefaultLinearAxis')
+    try:
+        WindowManager = autoclass('ij.WindowManager')
+        ij.legacy_enabled = True
+    except:
+        ij.legacy_enabled = False
+        #todo: Remove this step once issue #185 in imagej-legacy is resolved.
+        class WindowManager:
+            def getCurrentImage(self):
+                """
+                Throw an error saying IJ1 is not available
+                :return:
+                """
+                raise ImportError("Your ImageJ installation does not support IJ1.  This function does not work.")
+        WindowManager = WindowManager()
 
     class ImageJPython:
         def __init__(self, ij):
@@ -216,7 +229,7 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
                 }
                 for t in ij1_types:
                     if ij1_type == t:
-                        return numpy.dtype(ij1_types[c])
+                        return numpy.dtype(t)
                 raise TypeError('Unsupported ImageJ1 type: {}'.format(ij1_type))
 
             raise TypeError('Unsupported Java type: ' + str(jclass(image_or_type).getName()))
@@ -580,6 +593,31 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
             final_value = '[' + temp_value + ']'
             return final_value
 
+        def window_to_xarray(self):
+            """
+            Convert the active image window to a numpy array, synchronizing from IJ1 -> IJ2
+            :return: numpy array containing the image data
+            """
+            imp = self.get_image_plus()
+            return ij.py.from_java(imp)
+
+        def get_image_plus(self):
+            """
+            Get the currently active IJ1 image window, synchronizing from IJ1 -> IJ2
+            :return: The ImagePlus corresponding to the active image
+            """
+            imp = WindowManager.getCurrentImage()
+            self.synchronize_ij2_to_ij1(imp)
+            return imp
+
+        def synchronize_ij2_to_ij1(self, imp):
+            """
+            Synchronize between IJ2 and IJ1 by accepting the IJ1 data as true
+            :param imp: The IJ1 ImagePlus that needs to be synchronized
+            """
+            stack = imp.getStack()
+            stack.setPixels(imp.getProcessor().getPixels(), imp.getCurrentSlice())
+
     ij.py = ImageJPython(ij)
 
     # Forward stdout and stderr from Java to Python.
@@ -602,65 +640,6 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
 
     ij.py._outputMapper = JavaOutputListener()
     ij.console().addOutputListener(ij.py._outputMapper)
-    try:
-        WindowManager = autoclass('ij.WindowManager')
-        ij.legacy_enabled = True
-
-        def window_to_xarray():
-            """
-            Convert the active image window to a numpy array, synchronizing from IJ1 -> IJ2
-            :return: numpy array containing the image data
-            """
-            imp = get_image_plus()
-            return ij.py.from_java(imp)
-
-        def get_image_plus():
-            """
-            Get the currently active IJ1 image window, synchronizing from IJ1 -> IJ2
-            :return: The ImagePlus corresponding to the active image
-            """
-            imp = WindowManager.getCurrentImage()
-            synchronize_ij2_to_ij1(imp)
-            return imp
-
-        def synchronize_ij2_to_ij1(imp):
-            """
-            Synchronize between IJ2 and IJ1 by accepting the IJ1 data as true
-            :param imp: The IJ1 ImagePlus that needs to be synchronized
-            """
-            stack = imp.getStack()
-            stack.setPixels(imp.getProcessor().getPixels(), imp.getCurrentSlice())
-
-    except:
-        ij.legacy_enabled = False
-
-        def synchronize_ij2_to_ij1():
-            """
-            Synchronize between IJ2 and IJ1 by accepting the IJ1 data as true
-            :param imp: The IJ1 ImagePlus that needs to be synchronized
-            """
-            warnings.warn(UserWarning("IJ1 is not installed.  This function does nothing."))
-            return False
-
-        def get_image_plus():
-            """
-            Get the currently active IJ1 image window, synchronizing from IJ1 -> IJ2
-            :return: The ImagePlus corresponding to the active image
-            """
-            warnings.warn(UserWarning("IJ1 is not installed.  This function does nothing."))
-            return False
-
-        def window_to_xarray():
-            """
-            Convert the active image window to a numpy array, synchronizing from IJ1 -> IJ2
-            :return: numpy array containing the image data
-            """
-            warnings.warn(UserWarning("IJ1 is not installed.  This function does nothing."))
-            return False
-
-    setattr(ij.py, "synchronize_ij2_to_ij1", synchronize_ij2_to_ij1)
-    setattr(ij.py, "get_image_plus", get_image_plus)
-    setattr(ij.py, "window_to_xarray", window_to_xarray)
 
     return ij
 

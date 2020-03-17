@@ -11,6 +11,8 @@ class TestIJ1ToIJ2Synchronization(object):
     def testGetImagePlusSynchronizesFromIJ1ToIJ2(self, ij_fixture, arr):
         if not ij_fixture.legacy_enabled:
             pytest.skip("No IJ1.  Skipping test.")
+        if ij_fixture.ui().isHeadless():
+            pytest.skip("No GUI.  Skipping test")
 
         original = arr[0, 0]
         ds = ij_fixture.py.to_java(arr)
@@ -24,6 +26,8 @@ class TestIJ1ToIJ2Synchronization(object):
     def testSynchronizeFromIJ1ToNumpy(self, ij_fixture, arr):
         if not ij_fixture.legacy_enabled:
             pytest.skip("No IJ1.  Skipping test.")
+        if ij_fixture.ui().isHeadless():
+            pytest.skip("No GUI.  Skipping test")
 
         original = arr[0, 0]
         ds = ij_fixture.py.to_dataset(arr)
@@ -37,6 +41,8 @@ class TestIJ1ToIJ2Synchronization(object):
     def testWindowToNumpyConvertsActiveImageToXarray(self, ij_fixture, arr):
         if not ij_fixture.legacy_enabled:
             pytest.skip("No IJ1.  Skipping test.")
+        if ij_fixture.ui().isHeadless():
+            pytest.skip("No GUI.  Skipping test")
 
         ds = ij_fixture.py.to_dataset(arr)
         ij_fixture.ui().show(ds)
@@ -47,9 +53,9 @@ class TestIJ1ToIJ2Synchronization(object):
         if ij_fixture.legacy_enabled:
             pytest.skip("IJ1 installed.  Skipping test")
 
-        with pytest.warns(UserWarning):
-            ij_fixture.py.synchronize_ij2_to_ij1()
-        with pytest.warns(UserWarning):
+        with pytest.raises(AttributeError):
+            ij_fixture.py.synchronize_ij2_to_ij1(None)
+        with pytest.raises(ImportError):
             ij_fixture.py.get_image_plus()
-        with pytest.warns(UserWarning):
+        with pytest.raises(ImportError):
             ij_fixture.py.window_to_xarray()
