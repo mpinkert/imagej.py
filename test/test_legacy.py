@@ -34,7 +34,7 @@ class TestIJ1ToIJ2Synchronization(object):
         ij_fixture.ui().show(ds)
         imp = ij_fixture.py.get_image_plus()
         imp.getProcessor().add(5)
-        ij_fixture.py.synchronize_ij2_to_ij1(imp)
+        ij_fixture.py.synchronize_ij1_to_ij2(imp)
 
         assert arr[0, 0] == original + 5
 
@@ -54,7 +54,7 @@ class TestIJ1ToIJ2Synchronization(object):
             pytest.skip("IJ1 installed.  Skipping test")
 
         with pytest.raises(AttributeError):
-            ij_fixture.py.synchronize_ij2_to_ij1(None)
+            ij_fixture.py.synchronize_ij1_to_ij2(None)
         with pytest.raises(ImportError):
             ij_fixture.py.get_image_plus()
         with pytest.raises(ImportError):

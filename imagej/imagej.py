@@ -607,10 +607,10 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
             :return: The ImagePlus corresponding to the active image
             """
             imp = WindowManager.getCurrentImage()
-            self.synchronize_ij2_to_ij1(imp)
+            self.synchronize_ij1_to_ij2(imp)
             return imp
 
-        def synchronize_ij2_to_ij1(self, imp):
+        def synchronize_ij1_to_ij2(self, imp):
             """
             Synchronize between a Dataset or ImageDisplay linked to an ImagePlus by accepting the ImagePlus data as true
             :param imp: The IJ1 ImagePlus that needs to be synchronized
