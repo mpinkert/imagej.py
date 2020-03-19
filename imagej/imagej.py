@@ -596,7 +596,7 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
             final_value = '[' + temp_value + ']'
             return final_value
 
-        def window_to_xarray(self, sync):
+        def window_to_xarray(self, sync=True):
             """
             Convert the active image to a numpy array, synchronizing from IJ1 -> IJ2
             :param sync: Manually synchronize the current IJ1 slice if True
