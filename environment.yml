@@ -11,4 +11,3 @@ dependencies:
   - pillow # for server
   - requests # for server
   - xarray
-  - pytest
