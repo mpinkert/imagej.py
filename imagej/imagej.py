@@ -321,34 +321,27 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
 
         def _xarray_to_dataset(self, xarr):
             """
-            Converts a numpy array with default dimension order or xarray dataarray with specified dim order to an image
+            Converts a xarray dataarray with specified dim order to an image
             :param xarr: Pass an xarray dataarray and turn into a dataset.
-            :return:
+            :return: The dataset
             """
             dataset = self._numpy_to_dataset(xarr.values)
             axes = self._assign_axes(xarr)
             dataset.setAxes(axes)
 
             # Currently, we have no handling for nonlinear axes, but I thought it should warn instead of fail.
-            if not self._linear_axes(xarr.coords):
+            if not self._axis_is_linear(xarr.coords):
                 warnings.warn("Not all axes are linear.  The nonlinear axes are not mapped correctly.")
             
             self._assign_dataset_metadata(dataset, xarr.attrs)
 
             return dataset
-            # Problems: Assuming we need to flip or not?
-            # Assuming XYCZT?  Or comes in as TZCYX?
-            #
-
-            # Convert the values into a dataset, bubbling X and Y to the top, while converting axes properly
-            # Set the origin and scale
-            # Warn if the scale is not linear, that it has been assumed to be linear
         
         def _assign_axes(self, xarr):
             """
-            Assign xarray axes names and units to the Java dataset.
-            :param dataset: Java dataset
-            :param xarr: xarray
+            Obtain xarray axes names, origin, and scale and convert into ImageJ Axis; currently supports DefaultLinearAxis.
+            :param xarr: xarray that holds the units
+            :return: A list of ImageJ Axis with the specified origin and scale
             """
             axes = ['']*len(xarr.dims)
 
@@ -356,8 +349,10 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
                 origin = self._get_origin(xarr.coords[axis])
                 scale = self._get_scale(xarr.coords[axis])
 
-                ax_type = Axes.get(str(axis))
-                ax_num = self._get_axis_num(xarr, axis) # todo: Check about java axis number...
+                axisStr = self._pydim_to_ijdim(axis)
+
+                ax_type = Axes.get(axisStr)
+                ax_num = self._get_axis_num(xarr, axis)
                 if scale is None:
                     java_axis = DefaultLinearAxis(ax_type)
                 else:
@@ -366,6 +361,18 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
                 axes[ax_num] = java_axis
 
             return axes
+
+        def _pydim_to_ijdim(self, axis):
+            """Convert between the lowercase Python convention (x, y, z, c, t) to IJ (X, Y, Z, C, T)"""
+            if str(axis) in ['x', 'y', 'z', 'c', 't']:
+                return str(axis).upper()
+            return str(axis)
+
+        def _ijdim_to_pydim(self, axis):
+            """Convert the IJ uppercase dimension convention (X, Y, Z< C, T) to lowercase python (x, y, z, c, t) """
+            if str(axis) in ['X', 'Y', 'Z', 'C', 'T']:
+                return str(axis).lower()
+            return str(axis)
 
         def _get_axis_num(self, xarr, axis):
             """
@@ -388,7 +395,7 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
             """
             dataset.getProperties().putAll(self.to_java(attrs))
 
-        def _linear_axes(self, coords):
+        def _axis_is_linear(self, coords):
             """
             Check if each axis has linear steps between grid points.  Skip over axes with non-numeric entries
             :param coords: Xarray coords variable, which is a dict with axis: [axis values]
@@ -417,7 +424,7 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
             """
             Get the scale of an axis, assuming it is linear and so the scale is simply second - first coordinate.
             :param axis: A 1D list like entry accessible with indexing, which contains the axis coordinates
-            :return: The scale for this axis.
+            :return: The scale for this axis or None if it is a non-numeric scale.
             """
             try:
                 return axis.values[1] - axis.values[0]
@@ -434,7 +441,7 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
                 if self._ij.convert().supports(data, ImgPlus):
                     imgPlus = self._ij.convert().convert(data, ImgPlus)
                     return self._ij.dataset().create(imgPlus)
-                if self._ij.convert().supports(data, ImgPlus):
+                if self._ij.convert().supports(data, Img):
                     img = self._ij.convert().convert(data, Img)
                     return self._ij.dataset().create(ImgPlus(img))
                 if self._ij.convert().supports(data, RandomAccessibleInterval):
@@ -469,14 +476,14 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
             """
             Converts an ImageJ dataset into an xarray
             :param dataset: ImageJ dataset
-            :return: xarray with reversed dims and coords as labeled by the dataset
+            :return: xarray with reversed (C-style) dims and coords as labeled by the dataset
             """
             attrs = self._ij.py.from_java(dataset.getProperties())
             axes = [(cast('net.imagej.axis.DefaultLinearAxis', dataset.axis(idx)))
                     for idx in range(dataset.numDimensions())]
 
-            dims = [axes[idx].type().getLabel() for idx in range(len(axes))]
-            values = self.rai_to_numpy(dataset)  # todo: Fix this to get a numpy array and not java iterable
+            dims = [self._ijdim_to_pydim(axes[idx].type().getLabel()) for idx in range(len(axes))]
+            values = self.rai_to_numpy(dataset)
             coords = self._get_axes_coords(axes, dims, numpy.shape(numpy.transpose(values)))
 
             xarr = xr.DataArray(values, dims=list(reversed(dims)), coords=coords, attrs=attrs)
