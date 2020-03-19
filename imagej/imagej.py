@@ -125,8 +125,7 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
 
     # Must import imglyb (not scyjava) to spin up the JVM now.
     import imglyb
-    from jnius import autoclass
-    from jnius import cast
+    from jnius import autoclass, cast, JavaException
     import scyjava
 
     # Initialize ImageJ.
@@ -143,11 +142,15 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
     Axes                     = autoclass('net.imagej.axis.Axes')
     DefaultLinearAxis        = autoclass('net.imagej.axis.DefaultLinearAxis')
     try:
-        WindowManager = autoclass('ij.WindowManager')
-        ij.legacy_enabled = True
-    except:
+        LegacyService = autoclass('net.imagej.legacy.LegacyService')
+        legacyService = cast(LegacyService, ij.get("net.imagej.legacy.LegacyService"))
+        ij.legacy_enabled = legacyService.isActive()
+        if ij.legacy_enabled:
+            WindowManager = autoclass('net.imagej.legacy.WindowManager')
+    except JavaException:
         ij.legacy_enabled = False
-        #todo: Remove this step once issue #185 in imagej-legacy is resolved.
+
+    if not ij.legacy_enabled:
         class WindowManager:
             def getCurrentImage(self):
                 """
@@ -352,7 +355,7 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
         
         def _assign_axes(self, xarr):
             """
-            Obtain xarray axes names, origin, and scale and convert into ImageJ Axis; currently supports DefaultLinearAxis.
+            Obtain xarray axes names, origin, and scale and convert into ImageJ Axis; currently supports LinearAxis.
             :param xarr: xarray that holds the units
             :return: A list of ImageJ Axis with the specified origin and scale
             """
@@ -362,9 +365,9 @@ def init(ij_dir_or_version_or_endpoint=None, headless=True, new_instance=False):
                 origin = self._get_origin(xarr.coords[axis])
                 scale = self._get_scale(xarr.coords[axis])
 
-                axisStr = self._pydim_to_ijdim(axis)
+                axis_str = self._pydim_to_ijdim(axis)
 
-                ax_type = Axes.get(axisStr)
+                ax_type = Axes.get(axis_str)
                 ax_num = self._get_axis_num(xarr, axis)
                 if scale is None:
                     java_axis = DefaultLinearAxis(ax_type)
